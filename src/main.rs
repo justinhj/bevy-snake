@@ -6,6 +6,35 @@ use bevy::core::FixedTimestep;
 const ARENA_WIDTH: u32 = 10;
 const ARENA_HEIGHT: u32 = 10;
 
+// System labels
+#[derive(SystemLabel,Debug,Hash,PartialEq,Eq,Clone)]
+pub enum SnakeMovement {
+    Input,
+    Movement,
+    Eating,
+    Growth,
+}
+
+
+#[derive(PartialEq,Copy,Clone)]
+enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+impl Direction {
+    pub fn opposite(self) -> Self {
+        match self {
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+            Self::Up => Self::Down,
+            Self::Down => Self::Up,
+        }
+    }
+}
+
 #[derive(Default,Copy,Clone,Eq,PartialEq,Hash)]
 struct Position {
     x: i32,
@@ -34,7 +63,10 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
     });
 }
 
-struct SnakeHead;
+struct SnakeHead {
+    direction: Direction,
+}
+
 struct Food;
 
 struct Materials {
@@ -66,7 +98,7 @@ fn spawn_snake(mut commands: Commands, materials: Res<Materials>) {
             sprite: Sprite::new(Vec2::new(10.0,10.0)),
             ..Default::default()
         })
-        .insert(SnakeHead)
+        .insert(SnakeHead{direction: Direction::Up})
         .insert(Position { x: 3, y: 3 })
         .insert(Size::square(0.8));
 }
@@ -97,27 +129,41 @@ fn position_translation(windows: Res<Windows>, mut q: Query<(&Position, &mut Tra
     }
 }
 
+fn snake_movement_input(keyboard_input: Res<Input<KeyCode>>, mut heads: Query<&mut SnakeHead>) {
+  if let Some(mut head) = heads.iter_mut().next() {
+        let dir: Direction = if keyboard_input.pressed(KeyCode::Left) {
+            Direction::Left
+        } else if keyboard_input.pressed(KeyCode::Down) {
+            Direction::Down
+        } else if keyboard_input.pressed(KeyCode::Up) {
+            Direction::Up
+        } else if keyboard_input.pressed(KeyCode::Right) {
+            Direction::Right
+        } else {
+            head.direction
+        };
+        if dir != head.direction.opposite() {
+            head.direction = dir;
+        }
+    }
+}
 
-// Remember that underscore means a variable isn't used
-// Note that we're using a mutable iterator, an iterator over mutable things
-fn snake_movement(
-    keyboard_input: Res<Input<KeyCode>>,
-    mut head_positions: Query<&mut Position, With<SnakeHead>>,
-    ) {
-    for mut position in head_positions.iter_mut() {
-        if keyboard_input.pressed(KeyCode::Left) {
-            position.x -= 1;
-        }
-        if keyboard_input.pressed(KeyCode::Right) {
-            position.x += 1;
-        }
-        if keyboard_input.pressed(KeyCode::Up) {
-            position.y += 1;
-        }
-        if keyboard_input.pressed(KeyCode::Down) {
-            position.y -= 1;
-        }
-
+fn snake_movement(mut heads: Query<(&mut Position, &SnakeHead)>) {
+    if let Some((mut head_pos, head)) = heads.iter_mut().next() {
+        match &head.direction {
+            Direction::Left => {
+                head_pos.x -= 1;
+            }
+            Direction::Right => {
+                head_pos.x += 1;
+            }
+            Direction::Up => {
+                head_pos.y += 1;
+            }
+            Direction::Down => {
+                head_pos.y -= 1;
+            }
+        };
     }
 }
 
@@ -132,7 +178,17 @@ fn main() {
         .insert_resource(ClearColor(Color::rgb(0.04,0.04,0.04)))
         .add_startup_system(setup.system())
         .add_startup_stage("game_setup", SystemStage::single(spawn_snake.system()))
-        .add_system(snake_movement.system())
+        .add_system(
+            snake_movement_input
+                .system()
+                .label(SnakeMovement::Input)
+                .before(SnakeMovement::Movement),
+            )
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(0.150))
+                .with_system(snake_movement.system().label(SnakeMovement::Movement)),
+                )
         .add_system_set(SystemSet::new()
                         .with_run_criteria(FixedTimestep::step(1.0))
                         .with_system(food_spawner.system()))
