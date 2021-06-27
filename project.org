@@ -1,0 +1,13 @@
+* Snake tutorial notes 
+
+https://mbuffett.com/posts/bevy-snake-tutorial/
+
+bevy uses empty structs as a sort of tag
+
+note that here we make a mutable ResMut 
+this gives us a way to create assets of type ColorMaterial
+
+#+BEGIN_SRC rust
+fn setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
+#+END_SRC
+
