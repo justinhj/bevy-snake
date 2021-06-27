@@ -11,3 +11,11 @@ this gives us a way to create assets of type ColorMaterial
 fn setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>)
 #+END_SRC
 
+note that this enables fast linking (for much better iteration times)
+but needs to be reverted for shipping
+
+#+BEGIN_SRC toml
+[dependencies]
+bevy = { version = "0.5.0", features = ["dynamic"] }
+#+END_SRC
+

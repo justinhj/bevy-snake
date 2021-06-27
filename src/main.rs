@@ -22,10 +22,19 @@ fn spawn_snake(mut commands: Commands, materials: Res<Materials>) {
         .insert(SnakeHead);
 }
 
+// Remember that underscore means a variable isn't used
+// Note that we're using a mutable iterator, an iterator over mutable things
+fn snake_movement(mut head_positions: Query<(&SnakeHead, &mut Transform)>) {
+    for(_head, mut transform) in head_positions.iter_mut() {
+        transform.translation.y += 1.;
+    }
+}
+
 fn main() {
     App::build()
         .add_startup_system(setup.system())
         .add_startup_stage("game_setup", SystemStage::single(spawn_snake.system()))
+        .add_system(snake_movement.system())
         .add_plugins(DefaultPlugins)
         .run();
 }
