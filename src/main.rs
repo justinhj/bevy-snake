@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::render::pass::ClearColor;
 
 const ARENA_WIDTH: u32 = 10;
 const ARENA_HEIGHT: u32 = 10;
@@ -78,20 +79,20 @@ fn position_translation(windows: Res<Windows>, mut q: Query<(&Position, &mut Tra
 // Note that we're using a mutable iterator, an iterator over mutable things
 fn snake_movement(
     keyboard_input: Res<Input<KeyCode>>,
-    mut head_positions: Query<&mut Transform, With<SnakeHead>>,
+    mut head_positions: Query<&mut Position, With<SnakeHead>>,
     ) {
-    for mut transform in head_positions.iter_mut() {
+    for mut position in head_positions.iter_mut() {
         if keyboard_input.pressed(KeyCode::Left) {
-            transform.translation.x -= 2.;
+            position.x -= 1;
         }
         if keyboard_input.pressed(KeyCode::Right) {
-            transform.translation.x += 2.;
+            position.x += 1;
         }
         if keyboard_input.pressed(KeyCode::Up) {
-            transform.translation.y += 2.;
+            position.y += 1;
         }
         if keyboard_input.pressed(KeyCode::Down) {
-            transform.translation.y -= 2.;
+            position.y -= 1;
         }
 
     }
@@ -99,6 +100,13 @@ fn snake_movement(
 
 fn main() {
     App::build()
+        .insert_resource(WindowDescriptor {
+            title: "Bevy-Snake".to_string(),
+            width: 500.,
+            height: 500.,
+            ..Default::default()
+        })
+        .insert_resource(ClearColor(Color::rgb(0.04,0.04,0.04)))
         .add_startup_system(setup.system())
         .add_startup_stage("game_setup", SystemStage::single(spawn_snake.system()))
         .add_system(snake_movement.system())
