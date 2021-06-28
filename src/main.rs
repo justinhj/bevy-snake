@@ -68,6 +68,8 @@ struct SnakeHead {
     direction: Direction,
 }
 
+struct GrowthEvent;
+
 struct SnakeSegment;
 
 #[derive(Default)]
@@ -164,6 +166,20 @@ fn snake_movement_input(keyboard_input: Res<Input<KeyCode>>, mut heads: Query<&m
     }
 }
 
+fn snake_eating(mut commands: Commands,
+                mut growth_writer: EventWriter<GrowthEvent>,
+                food_positions: Query<(Entity,&Position), With<Food>>,
+                head_positions: Query<&Position, With<SnakeHead>>) {
+    for head_pos in head_positions.iter() {
+        for (ent, food_position) in food_positions.iter() {
+            if food_position == head_pos {
+                commands.entity(ent).despawn();
+                growth_writer.send(GrowthEvent);
+            }
+        }
+    }
+}   
+
 fn snake_movement(segments: ResMut<SnakeSegments>, 
                   mut heads: Query<(Entity, &SnakeHead)>,
                   mut positions: Query<&mut Position>, 
@@ -220,6 +236,7 @@ fn main() {
         })
         .insert_resource(ClearColor(Color::rgb(0.04,0.04,0.04)))
         .insert_resource(SnakeSegments::default())
+        .add_event::<GrowthEvent>()
         .add_startup_system(setup.system())
         .add_startup_stage("game_setup", SystemStage::single(spawn_snake.system()))
         .add_system(
@@ -231,7 +248,10 @@ fn main() {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(0.150))
-                .with_system(snake_movement.system().label(SnakeMovement::Movement)),
+                .with_system(snake_movement.system().label(SnakeMovement::Movement))
+                .with_system(snake_eating.system()
+                             .label(SnakeMovement::Eating)
+                            .after(SnakeMovement::Movement))
                 )
         .add_system_set(SystemSet::new()
                         .with_run_criteria(FixedTimestep::step(1.0))
