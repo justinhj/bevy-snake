@@ -19,3 +19,22 @@ but needs to be reverted for shipping
 bevy = { version = "0.5.0", features = ["dynamic"] }
 #+END_SRC
 
+This chaining is interesting, you can connect two iterators of the same type
+Here the type is entity 
+
+#+BEGIN_SRC rust
+    if reader.iter().next().is_some() {
+        for ent in segments.iter().chain(food.iter()) {
+            commands.entity(ent).despawn();
+        }
+        spawn_snake(commands, materials, segments_res)
+    }
+#+END_SRC
+
+Fixing the movement bug ...
+
+moving right
+hit up
+hit left 
+eats self
+

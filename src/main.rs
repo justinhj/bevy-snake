@@ -16,7 +16,7 @@ pub enum SnakeMovement {
 }
 
 
-#[derive(PartialEq,Copy,Clone)]
+#[derive(PartialEq,Copy,Clone,Debug)]
 enum Direction {
     Left,
     Right,
@@ -38,7 +38,7 @@ impl Direction {
 #[derive(Default)]
 struct LastTailPosition(Option<Position>);
 
-#[derive(Default,Copy,Clone,Eq,PartialEq,Hash)]
+#[derive(Default,Copy,Clone,Eq,PartialEq,Hash,Debug)]
 struct Position {
     x: i32,
     y: i32,
@@ -69,6 +69,7 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
 
 struct SnakeHead {
     direction: Direction,
+    last_input: Direction,
 }
 
 struct GrowthEvent;
@@ -111,7 +112,7 @@ fn spawn_snake(mut commands: Commands, materials: Res<Materials>, mut segments: 
                 sprite: Sprite::new(Vec2::new(10.0,10.0)),
                 ..Default::default()
             })
-            .insert(SnakeHead{direction: Direction::Up})
+            .insert(SnakeHead{direction: Direction::Up, last_input: Direction::Up})
             .insert(SnakeSegment)
             .insert(Position { x: 3, y: 3 })
             .insert(Size::square(0.8))
@@ -150,27 +151,6 @@ fn position_translation(windows: Res<Windows>, mut q: Query<(&Position, &mut Tra
     }
 }
 
-fn snake_movement_input(
-    keyboard_input: Res<Input<KeyCode>>, 
-    mut heads: Query<&mut SnakeHead>) {
-  if let Some(mut head) = heads.iter_mut().next() {
-        let dir: Direction = if keyboard_input.pressed(KeyCode::Left) {
-            Direction::Left
-        } else if keyboard_input.pressed(KeyCode::Down) {
-            Direction::Down
-        } else if keyboard_input.pressed(KeyCode::Up) {
-            Direction::Up
-        } else if keyboard_input.pressed(KeyCode::Right) {
-            Direction::Right
-        } else {
-            head.direction
-        };
-        if dir != head.direction.opposite() {
-            head.direction = dir;
-        }
-    }
-}
-
 fn snake_eating(mut commands: Commands,
                 mut growth_writer: EventWriter<GrowthEvent>,
                 food_positions: Query<(Entity,&Position), With<Food>>,
@@ -185,19 +165,55 @@ fn snake_eating(mut commands: Commands,
     }
 }   
 
+fn snake_movement_input(
+    keyboard_input: Res<Input<KeyCode>>, 
+    mut heads: Query<&mut SnakeHead>) {
+  if let Some(mut head) = heads.iter_mut().next() {
+        let dir: Direction = if keyboard_input.pressed(KeyCode::Left) {
+            println!("direction left");
+            Direction::Left
+        } else if keyboard_input.pressed(KeyCode::Down) {
+            println!("direction down");
+            Direction::Down
+        } else if keyboard_input.pressed(KeyCode::Up) {
+            println!("direction up");
+            Direction::Up
+        } else if keyboard_input.pressed(KeyCode::Right) {
+            println!("direction right");
+            Direction::Right
+        } else {
+            println!("direction {:?}", head.direction);
+            head.last_input
+        };
+        head.last_input = dir;
+        // if dir != head.direction.opposite() {
+        //     head.direction = dir;
+        // } else {
+        //     println!("opposite ignored");
+        // }
+    }
+}
+
 fn snake_movement(segments: ResMut<SnakeSegments>, 
                   mut last_tail_position: ResMut<LastTailPosition>,
-                  mut heads: Query<(Entity, &SnakeHead)>,
+                  mut heads: Query<(Entity, &mut SnakeHead)>,
                   mut positions: Query<&mut Position>, 
                   mut game_over_writer: EventWriter<GameOverEvent>,
                   ) {
-    if let Some((head_entity, head)) = heads.iter_mut().next() {
+    if let Some((head_entity, mut head)) = heads.iter_mut().next() {
         let segment_positions = segments.0
             .iter()
             .map(|e| *positions.get_mut(*e).unwrap())
             .collect::<Vec<Position>>();
 
         let mut head_pos = positions.get_mut(head_entity).unwrap();
+        
+        println!("Pre move {:?} dir {:?} {:?}", head_pos, head.direction, head.last_input);
+
+        if head.direction != head.last_input.opposite() {
+            head.direction = head.last_input;
+        }
+
         match &head.direction {
             Direction::Left => {
                 head_pos.x -= 1;
@@ -212,6 +228,10 @@ fn snake_movement(segments: ResMut<SnakeSegments>,
                 head_pos.y -= 1;
             }
         };
+
+
+        println!("Post move {:?} dir {:?} {:?}", head_pos, head.direction, head.last_input);
+
         // Handle hitting the wall
         if head_pos.x < 0
             || head_pos.y < 0
@@ -221,6 +241,7 @@ fn snake_movement(segments: ResMut<SnakeSegments>,
         }
         // Handle hitting ourselves
         if segment_positions.contains(&head_pos) {
+            println!("game over");
             game_over_writer.send(GameOverEvent);
         }
         segment_positions
