@@ -90,17 +90,26 @@ struct Materials {
 fn food_spawner(
     mut commands: Commands,
     materials: Res<Materials>,
-    ) {
+    segment_positions: Query<&Position, With<SnakeSegment>>) {
+
+    let mut x: i32;
+    let mut y: i32;
+
+    while {
+        x = (random::<f32>() * ARENA_WIDTH as f32) as i32;
+        y = (random::<f32>() * ARENA_HEIGHT as f32) as i32;
+
+        !segment_positions.iter().all (|seg| !(seg.x == x && seg.y == y))
+
+    } {}
+
     commands
         .spawn_bundle(SpriteBundle {
             material: materials.food_material.clone(),
             ..Default::default()
         })
         .insert(Food)
-        .insert(Position {
-            x: (random::<f32>() * ARENA_WIDTH as f32) as i32,
-            y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
-        })
+        .insert(Position {x, y })
         .insert(Size::square(0.8));
 }
 
@@ -170,27 +179,22 @@ fn snake_movement_input(
     mut heads: Query<&mut SnakeHead>) {
   if let Some(mut head) = heads.iter_mut().next() {
         let dir: Direction = if keyboard_input.pressed(KeyCode::Left) {
-            println!("direction left");
+            // println!("direction left");
             Direction::Left
         } else if keyboard_input.pressed(KeyCode::Down) {
-            println!("direction down");
+            // println!("direction down");
             Direction::Down
         } else if keyboard_input.pressed(KeyCode::Up) {
-            println!("direction up");
+            // println!("direction up");
             Direction::Up
         } else if keyboard_input.pressed(KeyCode::Right) {
-            println!("direction right");
+            // println!("direction right");
             Direction::Right
         } else {
-            println!("direction {:?}", head.direction);
+            // println!("direction {:?}", head.direction);
             head.last_input
         };
         head.last_input = dir;
-        // if dir != head.direction.opposite() {
-        //     head.direction = dir;
-        // } else {
-        //     println!("opposite ignored");
-        // }
     }
 }
 
@@ -208,7 +212,7 @@ fn snake_movement(segments: ResMut<SnakeSegments>,
 
         let mut head_pos = positions.get_mut(head_entity).unwrap();
         
-        println!("Pre move {:?} dir {:?} {:?}", head_pos, head.direction, head.last_input);
+        // println!("Pre move {:?} dir {:?} {:?}", head_pos, head.direction, head.last_input);
 
         if head.direction != head.last_input.opposite() {
             head.direction = head.last_input;
@@ -230,7 +234,7 @@ fn snake_movement(segments: ResMut<SnakeSegments>,
         };
 
 
-        println!("Post move {:?} dir {:?} {:?}", head_pos, head.direction, head.last_input);
+        // println!("Post move {:?} dir {:?} {:?}", head_pos, head.direction, head.last_input);
 
         // Handle hitting the wall
         if head_pos.x < 0
@@ -241,7 +245,7 @@ fn snake_movement(segments: ResMut<SnakeSegments>,
         }
         // Handle hitting ourselves
         if segment_positions.contains(&head_pos) {
-            println!("game over");
+            // println!("game over");
             game_over_writer.send(GameOverEvent);
         }
         segment_positions
