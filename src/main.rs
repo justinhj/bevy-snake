@@ -35,6 +35,9 @@ impl Direction {
     }
 }
 
+#[derive(Default)]
+struct LastTailPosition(Option<Position>);
+
 #[derive(Default,Copy,Clone,Eq,PartialEq,Hash)]
 struct Position {
     x: i32,
@@ -69,7 +72,7 @@ struct SnakeHead {
 }
 
 struct GrowthEvent;
-
+struct GameOverEvent;
 struct SnakeSegment;
 
 #[derive(Default)]
@@ -147,7 +150,9 @@ fn position_translation(windows: Res<Windows>, mut q: Query<(&Position, &mut Tra
     }
 }
 
-fn snake_movement_input(keyboard_input: Res<Input<KeyCode>>, mut heads: Query<&mut SnakeHead>) {
+fn snake_movement_input(
+    keyboard_input: Res<Input<KeyCode>>, 
+    mut heads: Query<&mut SnakeHead>) {
   if let Some(mut head) = heads.iter_mut().next() {
         let dir: Direction = if keyboard_input.pressed(KeyCode::Left) {
             Direction::Left
@@ -181,8 +186,10 @@ fn snake_eating(mut commands: Commands,
 }   
 
 fn snake_movement(segments: ResMut<SnakeSegments>, 
+                  mut last_tail_position: ResMut<LastTailPosition>,
                   mut heads: Query<(Entity, &SnakeHead)>,
                   mut positions: Query<&mut Position>, 
+                  mut game_over_writer: EventWriter<GameOverEvent>,
                   ) {
     if let Some((head_entity, head)) = heads.iter_mut().next() {
         let segment_positions = segments.0
@@ -205,12 +212,39 @@ fn snake_movement(segments: ResMut<SnakeSegments>,
                 head_pos.y -= 1;
             }
         };
+        // Handle hitting the wall
+        if head_pos.x < 0
+            || head_pos.y < 0
+            || head_pos.x as u32 >= ARENA_WIDTH
+            || head_pos.y as u32 >= ARENA_HEIGHT {
+            game_over_writer.send(GameOverEvent);
+        }
+        // Handle hitting ourselves
+        if segment_positions.contains(&head_pos) {
+            game_over_writer.send(GameOverEvent);
+        }
         segment_positions
             .iter()
             .zip(segments.0.iter().skip(1))
             .for_each(|(pos,segment)| {
                 *positions.get_mut(*segment).unwrap() = *pos;
             });
+        last_tail_position.0 = Some(*segment_positions.last().unwrap());
+    }
+}
+
+fn snake_growth(commands: Commands,
+    last_tail_position: Res<LastTailPosition>,
+    mut segments: ResMut<SnakeSegments>,
+    mut growth_reader: EventReader<GrowthEvent>,
+    materials: Res<Materials>,
+) {
+    if growth_reader.iter().next().is_some() {
+        segments.0.push(spawn_segment(
+            commands,
+            &materials.segment_material,
+            last_tail_position.0.unwrap(),
+        ));
     }
 }
 
@@ -226,6 +260,22 @@ fn spawn_segment(mut commands: Commands, material: &Handle<ColorMaterial>, posit
         .id()
 }
 
+fn game_over(
+    mut commands: Commands,
+    mut reader: EventReader<GameOverEvent>,
+    materials: Res<Materials>,
+    segments_res: ResMut<SnakeSegments>,
+    food: Query<Entity, With<Food>>,
+    segments: Query<Entity, With<SnakeSegment>>,
+) {
+    if reader.iter().next().is_some() {
+        for ent in segments.iter().chain(food.iter()) {
+            commands.entity(ent).despawn();
+        }
+        spawn_snake(commands, materials, segments_res)
+    }
+}
+
 fn main() {
     App::build()
         .insert_resource(WindowDescriptor {
@@ -236,6 +286,8 @@ fn main() {
         })
         .insert_resource(ClearColor(Color::rgb(0.04,0.04,0.04)))
         .insert_resource(SnakeSegments::default())
+        .insert_resource(LastTailPosition::default())
+        .add_event::<GameOverEvent>()
         .add_event::<GrowthEvent>()
         .add_startup_system(setup.system())
         .add_startup_stage("game_setup", SystemStage::single(spawn_snake.system()))
@@ -245,9 +297,16 @@ fn main() {
                 .label(SnakeMovement::Input)
                 .before(SnakeMovement::Movement),
             )
+        .add_system(game_over.system().after(SnakeMovement::Movement))
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(0.150))
+                .with_system(
+                    snake_growth
+                        .system()
+                        .label(SnakeMovement::Growth)
+                        .after(SnakeMovement::Eating),
+                )
                 .with_system(snake_movement.system().label(SnakeMovement::Movement))
                 .with_system(snake_eating.system()
                              .label(SnakeMovement::Eating)
